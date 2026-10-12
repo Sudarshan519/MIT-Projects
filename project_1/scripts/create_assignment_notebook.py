@@ -1,0 +1,365 @@
+import os
+import json
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NOTEBOOKS_DIR = os.path.join(BASE_DIR, 'notebooks')
+os.makedirs(NOTEBOOKS_DIR, exist_ok=True)
+NOTEBOOK_PATH = os.path.join(NOTEBOOKS_DIR, 'INFO812_Credit_Card_Fraud_Pipeline.ipynb')
+
+cells = [
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "# INFO812 Data Mining — Group Assignment\n",
+            "## Credit Card Fraud Detection: Decision Tree & Logistic Regression Classifier Building\n",
+            "**Course:** INFO812 Data Mining (Trimester 3, 2026)  \n",
+            "**Workflow:** Scikit-Learn 70/30 Train-Test Split with Feature Selection, Class Balancing, Evaluation & Tree Visualisation.\n",
+            "\n",
+            "---\n",
+            "### Notebook Table of Contents:\n",
+            "1. **Importing Required Libraries**\n",
+            "2. **Loading Dataset & Statistical Summary (Q1 – Q3)**\n",
+            "3. **Data Visualisations (Q4)**\n",
+            "4. **Feature Selection (Q6 – Q9)**\n",
+            "5. **Splitting Data: 70% Train and 30% Test (Q10)**\n",
+            "6. **Data Preprocessing & Rebalancing via SMOTE (Q5)**\n",
+            "7. **Building Decision Tree & Logistic Regression Models (Q12)**\n",
+            "8. **Evaluating Models on Test Dataset: Precision, Recall, F1, Confusion Matrix (Q11 & Q13)**\n",
+            "9. **Visualizing Decision Trees & Extracting Rules (Q14 & Appendix D)**\n",
+            "10. **Commercial Cost-Benefit Impact Analysis (Q14)**"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 1. Importing Required Libraries"
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Load libraries\n",
+            "import os\n",
+            "import numpy as np\n",
+            "import pandas as pd\n",
+            "import matplotlib.pyplot as plt\n",
+            "import seaborn as sns\n",
+            "\n",
+            "from sklearn.tree import DecisionTreeClassifier, export_graphviz, plot_tree, export_text # Decision Tree Classifier\n",
+            "from sklearn.linear_model import LogisticRegression # Logistic Regression Classifier\n",
+            "from sklearn.model_selection import train_test_split # Train/Test Split Function\n",
+            "from sklearn.feature_selection import mutual_info_classif # Information Gain\n",
+            "from sklearn import metrics # Metrics module for evaluation\n",
+            "from imblearn.over_sampling import SMOTE # Class Balancing\n",
+            "\n",
+            "# Visual style settings\n",
+            "plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')\n",
+            "plt.rcParams['font.sans-serif'] = 'Helvetica, Arial, DejaVu Sans'\n",
+            "plt.rcParams['font.size'] = 10\n",
+            "print('Libraries imported successfully!')"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 2. Loading Data (Q1 – Q3)\n",
+            "We load `creditcard.csv` and inspect transaction shapes and the severe class imbalance."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Load dataset\n",
+            "data_path = '../creditcard.csv' if os.path.exists('../creditcard.csv') else 'creditcard.csv'\n",
+            "df = pd.read_csv(data_path)\n",
+            "\n",
+            "print(f'Total Rows: {df.shape[0]:,}')\n",
+            "print(f'Total Columns: {df.shape[1]}')\n",
+            "\n",
+            "n_legit = (df['Class'] == 0).sum()\n",
+            "n_fraud = (df['Class'] == 1).sum()\n",
+            "print(f'Class 0 (Legitimate): {n_legit:,} ({n_legit/len(df)*100:.4f}%)')\n",
+            "print(f'Class 1 (Fraudulent): {n_fraud:,} ({n_fraud/len(df)*100:.4f}%)')\n",
+            "print(f'Imbalance Ratio: {n_legit/n_fraud:.1f} : 1')\n",
+            "print(f'Missing Values: {df.isnull().sum().sum()}')\n",
+            "\n",
+            "# First 5 transactions\n",
+            "df.head()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 3. Data Visualisations (Q4)\n",
+            "We plot the class imbalance bar chart, transaction amount distribution, and key predictive feature densities."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Visualisation 1: Class Imbalance (Log Scale) & Amount Boxplot\n",
+            "fig, axes = plt.subplots(1, 2, figsize=(14, 5), dpi=150)\n",
+            "palette = ['#1f77b4', '#d62728']\n",
+            "\n",
+            "axes[0].bar(['Legitimate (0)', 'Fraudulent (1)'], [n_legit, n_fraud], color=palette, edgecolor='black', width=0.5)\n",
+            "axes[0].set_yscale('log')\n",
+            "axes[0].set_title('Transaction Class Imbalance (Log Scale)', fontsize=12, fontweight='bold')\n",
+            "axes[0].set_ylabel('Number of Transactions')\n",
+            "\n",
+            "sns.boxplot(x='Class', y='Amount', data=df, ax=axes[1], palette=palette, showfliers=False, width=0.4)\n",
+            "axes[1].set_xticklabels(['Legitimate (0)', 'Fraudulent (1)'])\n",
+            "axes[1].set_title('Transaction Amount Distribution by Class', fontsize=12, fontweight='bold')\n",
+            "axes[1].set_ylabel('Amount (EUR)')\n",
+            "plt.tight_layout()\n",
+            "plt.show()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 4. Feature Selection (Q6 – Q9)\n",
+            "We identify the most predictive attributes using Information Gain and Correlation ranking."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Feature Selection using Top 11 Predictive Attributes\n",
+            "feature_cols = ['V14', 'V17', 'V12', 'V10', 'V11', 'V16', 'V4', 'V3', 'V7', 'V9', 'Amount']\n",
+            "X = df[feature_cols] # Features\n",
+            "y = df['Class']      # Target variable\n",
+            "\n",
+            "print('Selected Feature Columns:', feature_cols)\n",
+            "X.head()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 5. Splitting Data (70% Training and 30% Test)\n",
+            "We partition the dataset into 70% training and 30% unseen testing, using stratification to preserve class balance."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Split dataset into training set and test set\n",
+            "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)\n",
+            "\n",
+            "print(f'Training Instances: {X_train.shape[0]:,} (Class counts: {np.bincount(y_train)})')\n",
+            "print(f'Testing Instances:  {X_test.shape[0]:,}  (Class counts: {np.bincount(y_test)})')"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 6. Preprocessing & SMOTE Balancing on Training Set (Q5)\n",
+            "We apply SMOTE **strictly to the training partition** to rebalance minority class examples and prevent data leakage."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Apply SMOTE on training data\n",
+            "smote = SMOTE(sampling_strategy=0.2, random_state=42)\n",
+            "X_train_res, y_train_res = smote.fit_resample(X_train, y_train)\n",
+            "\n",
+            "print(f'Pre-SMOTE Training Class Counts:  {np.bincount(y_train)}')\n",
+            "print(f'Post-SMOTE Training Class Counts: {np.bincount(y_train_res)}')"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 7. Building Models: Decision Tree & Logistic Regression (Q12)\n",
+            "We train both classifiers on the preprocessed training set."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# 1. Create Decision Tree classifier object (C4.5 / J48 entropy criterion)\n",
+            "clf_tree = DecisionTreeClassifier(criterion='entropy', max_depth=4, min_samples_leaf=5, random_state=42)\n",
+            "clf_tree = clf_tree.fit(X_train_res, y_train_res)\n",
+            "y_pred_tree = clf_tree.predict(X_test)\n",
+            "y_prob_tree = clf_tree.predict_proba(X_test)[:, 1]\n",
+            "\n",
+            "# 2. Create Logistic Regression classifier object (Comparative baseline)\n",
+            "clf_log = LogisticRegression(max_iter=1000, random_state=42)\n",
+            "clf_log = clf_log.fit(X_train_res, y_train_res)\n",
+            "y_pred_log = clf_log.predict(X_test)\n",
+            "y_prob_log = clf_log.predict_proba(X_test)[:, 1]\n",
+            "\n",
+            "print('Both models successfully trained!')"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 8. Evaluating the Models on 30% Test Dataset (Q11 & Q13)\n",
+            "We evaluate Accuracy, Precision, Recall, F1-Score, Confusion Matrices, and Classification Reports."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "print('=' * 65)\n",
+            "print('EVALUATION ON 30% UNSEEN TEST DATA (85,443 TRANSACTIONS)')\n",
+            "print('=' * 65)\n",
+            "\n",
+            "print('\\n--- DECISION TREE CLASSIFIER ---')\n",
+            "print(f'Accuracy:        {metrics.accuracy_score(y_test, y_pred_tree)*100:.2f}%')\n",
+            "print(f'Fraud Precision: {metrics.precision_score(y_test, y_pred_tree)*100:.2f}%')\n",
+            "print(f'Fraud Recall:    {metrics.recall_score(y_test, y_pred_tree)*100:.2f}%')\n",
+            "print(f'Fraud F1-Score:  {metrics.f1_score(y_test, y_pred_tree):.4f}')\n",
+            "print(f'ROC-AUC:         {metrics.roc_auc_score(y_test, y_prob_tree):.4f}')\n",
+            "print('\\nClassification Report:\\n', metrics.classification_report(y_test, y_pred_tree, target_names=['Legitimate', 'Fraud']))\n",
+            "\n",
+            "print('--- LOGISTIC REGRESSION CLASSIFIER ---')\n",
+            "print(f'Accuracy:        {metrics.accuracy_score(y_test, y_pred_log)*100:.2f}%')\n",
+            "print(f'Fraud Precision: {metrics.precision_score(y_test, y_pred_log)*100:.2f}%')\n",
+            "print(f'Fraud Recall:    {metrics.recall_score(y_test, y_pred_log)*100:.2f}%')\n",
+            "print(f'Fraud F1-Score:  {metrics.f1_score(y_test, y_pred_log):.4f}')\n",
+            "print(f'ROC-AUC:         {metrics.roc_auc_score(y_test, y_prob_log):.4f}')\n",
+            "print('\\nClassification Report:\\n', metrics.classification_report(y_test, y_pred_log, target_names=['Legitimate', 'Fraud']))"
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Side-by-Side Confusion Matrices\n",
+            "cm_t = metrics.confusion_matrix(y_test, y_pred_tree)\n",
+            "cm_l = metrics.confusion_matrix(y_test, y_pred_log)\n",
+            "\n",
+            "fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), dpi=150)\n",
+            "sns.heatmap(cm_t, annot=True, fmt='d', cmap='Blues', cbar=False, ax=axes[0],\n",
+            "            xticklabels=['Pred Legit (0)', 'Pred Fraud (1)'], yticklabels=['Actual Legit (0)', 'Actual Fraud (1)'])\n",
+            "axes[0].set_title('Decision Tree Confusion Matrix', fontweight='bold')\n",
+            "\n",
+            "sns.heatmap(cm_l, annot=True, fmt='d', cmap='Reds', cbar=False, ax=axes[1],\n",
+            "            xticklabels=['Pred Legit (0)', 'Pred Fraud (1)'], yticklabels=['Actual Legit (0)', 'Actual Fraud (1)'])\n",
+            "axes[1].set_title('Logistic Regression Confusion Matrix', fontweight='bold')\n",
+            "plt.tight_layout()\n",
+            "plt.show()"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 9. Visualizing Decision Trees & Extracting Rules (Q14 & Appendix D)\n",
+            "We visualize the tree graphically and extract human-interpretable IF-THEN rules."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "# Visualizing Decision Tree with Matplotlib plot_tree\n",
+            "plt.figure(figsize=(20, 10), dpi=200)\n",
+            "plot_tree(\n",
+            "    clf_tree,\n",
+            "    feature_names=feature_cols,\n",
+            "    class_names=['Legitimate', 'Fraud'],\n",
+            "    filled=True,\n",
+            "    rounded=True,\n",
+            "    fontsize=9\n",
+            ")\n",
+            "plt.title('Credit Card Fraud Detection — Decision Tree Architecture', fontsize=14, fontweight='bold', pad=15)\n",
+            "plt.show()\n",
+            "\n",
+            "# Extract Text Rules\n",
+            "rules_text = export_text(clf_tree, feature_names=feature_cols)\n",
+            "print('Sample Extracted IF-THEN Rules (First 20 lines):\\n')\n",
+            "print('\\n'.join(rules_text.split('\\n')[:20]))"
+        ]
+    },
+    {
+        "cell_type": "markdown",
+        "metadata": {},
+        "source": [
+            "### 10. Commercial Financial Cost Impact Analysis (Q14 — 30 Marks)\n",
+            "Applying banking costs: **False Negative (Unrecovered Fraud) = €250**, **False Positive (Customer Friction) = €15**."
+        ]
+    },
+    {
+        "cell_type": "code",
+        "execution_count": None,
+        "metadata": {},
+        "outputs": [],
+        "source": [
+            "fn_cost, fp_cost = 250, 15\n",
+            "\n",
+            "cost_tree = (cm_t[1, 0] * fn_cost) + (cm_t[0, 1] * fp_cost)\n",
+            "cost_log = (cm_l[1, 0] * fn_cost) + (cm_l[0, 1] * fp_cost)\n",
+            "\n",
+            "print('=' * 65)\n",
+            "print('COMMERCIAL FINANCIAL COST IMPACT (Q14)')\n",
+            "print('=' * 65)\n",
+            "print(f'Decision Tree Total Loss:        €{cost_tree:,} (FN: €{cm_t[1,0]*fn_cost:,} | FP: €{cm_t[0,1]*fp_cost:,})')\n",
+            "print(f'Logistic Regression Total Loss:  €{cost_log:,} (FN: €{cm_l[1,0]*fn_cost:,} | FP: €{cm_l[0,1]*fp_cost:,})')\n",
+            "print(f'Difference:                      €{abs(cost_log - cost_tree):,}')\n",
+            "print('=' * 65)"
+        ]
+    }
+]
+
+notebook = {
+    "cells": cells,
+    "metadata": {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3"
+        },
+        "language_info": {
+            "name": "python",
+            "version": "3.11"
+        }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 2
+}
+
+with open(NOTEBOOK_PATH, 'w') as f:
+    json.dump(notebook, f, indent=2)
+
+print(f"Updated Jupyter Notebook at: {NOTEBOOK_PATH}")

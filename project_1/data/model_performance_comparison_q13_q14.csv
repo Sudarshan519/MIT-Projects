@@ -1,0 +1,7 @@
+Metric,J48 Decision Tree,Logistic Regression
+Precision (Fraud),0.926,0.963
+Recall (Fraud),0.86,0.85
+F1-Measure (Fraud),0.891,0.903
+ROC-AUC,0.938,0.98
+PRC-AUC,0.817,0.937
+Accuracy,0.9812,0.9836

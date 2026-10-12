@@ -1,0 +1,37 @@
+# ============================================================================
+# INFO813 Artificial Intelligence — Project 3
+# Skin Lesion Classification Using Deep Learning
+# ============================================================================
+# Dependencies — Install with: pip install -r requirements.txt
+# ============================================================================
+
+# Core Deep Learning
+tensorflow>=2.12.0
+keras>=3.0.0
+
+# Data Science & Numerical Computing
+numpy>=1.23.0
+pandas>=1.5.0
+scikit-learn>=1.2.0
+
+# Image Processing
+Pillow>=9.3.0
+opencv-python>=4.7.0
+
+# Visualisation
+matplotlib>=3.6.0
+seaborn>=0.12.0
+
+# Interactive Web Application
+gradio>=4.0.0
+
+# Jupyter Notebook Support
+nbformat>=5.7.0
+jupyter>=1.0.0
+ipykernel>=6.20.0
+
+# Progress Bars
+tqdm>=4.64.0
+
+# Utilities
+openpyxl>=3.1.0

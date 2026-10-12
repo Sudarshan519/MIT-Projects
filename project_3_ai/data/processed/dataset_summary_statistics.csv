@@ -1,0 +1,8 @@
+class_code,class_name,count,percentage,risk_level,mean_age,median_age
+akiec,Actinic Keratoses / Bowen's Disease,327,3.2651023464802793,Pre-cancerous,66.52905198776759,70.0
+bcc,Basal Cell Carcinoma,514,5.132301547678482,Malignant,66.82879377431907,70.0
+bkl,Benign Keratosis,1099,10.973539690464303,Benign,64.28374655647383,65.0
+df,Dermatofibroma,115,1.1482775836245633,Benign,53.04347826086956,50.0
+mel,Melanoma,1113,11.11333000499251,Malignant,60.67956795679568,60.0
+nv,Melanocytic Nevi,6705,66.94957563654518,Benign,46.47747747747748,45.0
+vasc,Vascular Lesions,142,1.417873190214678,Benign,51.37323943661972,55.0
